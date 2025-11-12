@@ -14,7 +14,7 @@ This project investigates how  the **2020 COVID-19 pandemic**affected first-year
   - Instructional spending per FTE  
   - Admission rate  
   - Graduation rate  
-- **Codebook:** `1105_valueLabels` provides variable definitions and coding.
+- **Codebook:** `1105_valueLabels.csv` provides variable definitions and coding.
 
 ---
 
