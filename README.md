@@ -1,7 +1,7 @@
 # DA-401-Project
 
 ## Overview
-This project investigates how  the **2020 COVID-19 pandemic**affected first-year student retention rates at **Midwestern colleges and universities**. It compares **small liberal arts colleges (SLA)** and **large research universities (LRI)** using a **Difference-in-Differences (DiD)** framework to estimate differential impacts by institutional type.
+This project investigates how  the **2020 COVID-19 pandemic**affected first-year student retention rates at **Midwestern colleges and universities**. It compares **small liberal arts colleges (SLA)** and **large research universities (LRI)** using a **Difference-in-Differences (DiD)** framework to estimate impacts by institutional type.
 
 ---
 
@@ -37,7 +37,7 @@ This project investigates how  the **2020 COVID-19 pandemic**affected first-year
    - Parallel trends assumption checked via pre-treatment plots and dynamic event-study models  
 
 3. **Outcome of Interest:**  
-   - Differential impact of external shocks on retention by institution type  
+   - Impact of external shocks on retention by institution type  
 
 ---
 
