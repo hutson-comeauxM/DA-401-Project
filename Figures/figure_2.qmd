@@ -1,0 +1,32 @@
+---
+title: "figure_2"
+format: html
+editor: visual
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(showtext)
+
+ipeds_panel2 <- read_csv("ipeds_panel2.csv")
+
+font_add_google("Source Serif Pro", "serif_pro")
+showtext_auto()
+```
+
+```{r}
+model_trends <- feols(
+  `Full-time retention rate` ~ i(year, treat, ref = 2019) | UnitID,
+  cluster = ~UnitID,
+  data = ipeds_panel2
+)
+
+png("dynamic_effects_retention.png", width = 800, height = 500, res = 150, bg = "white")
+par(family = "serif_pro", cex.axis = 0.9, cex.lab = 1, cex.main = 1.2, las = 1, mar = c(5, 5, 4, 2) + 0.1)
+iplot(model_trends, ref.line = 0, col = "#4682B4", ci.col = "#A4BEDC",
+      main = "Dynamic Effects of COVID-19 on Retention Rates",
+      xlab = "Years Relative to 2019 (Pre-Pandemic Baseline)",
+      ylab = "Estimated Effect on Full-time Retention Rate (%)")
+```
+
