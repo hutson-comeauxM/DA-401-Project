@@ -1,0 +1,259 @@
+---
+title: "main_ipeds"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(fixest) 
+library(broom)   
+
+#ipeds_panel <- read_csv("ipeds_panel.csv")
+
+
+admission_groups <- ipeds_panel %>%
+  group_by(`School Type`, UnitID) %>%
+  summarise(
+    mean_admission = mean(`Percent Admitted`, na.rm = TRUE),
+    mean_expense = mean(`Instruction expenses per FTE`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(`School Type`) %>%
+  mutate(
+    admission_group = ntile(mean_admission, 3),
+    expense_group = ntile(mean_expense, 3)
+  ) %>%
+  mutate(
+    admission_group = factor(
+      admission_group,
+      labels = c("Low Admission %", "Medium Admission %", "High Admission %")
+    ),
+    expense_group = factor(
+      expense_group,
+      labels = c("Low Expenses", "Medium Expenses", "High Expenses")
+    )
+  ) %>%
+  ungroup()
+
+#Merge classifications back into the main dataset
+ipeds_panel <- ipeds_panel %>%
+  left_join(
+    admission_groups %>%
+      select(UnitID, `School Type`, admission_group, expense_group),
+    by = c("UnitID", "School Type")
+  )
+```
+
+```{r}
+ipeds_panel %>%
+  group_by(year, `School Type`) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_retention, color = `School Type`)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 2020, linetype = "dashed") +
+  labs(title = "Pre- and Post-COVID Retention Trends by Institution Type",
+       y = "Mean Retention Rate", x = "Year",
+       color = "Institution Type") +
+  scale_x_continuous(limits = c(2014, 2023), breaks = 2014:2023) +
+  scale_y_continuous(limits = c(70, 95)) +
+  theme_minimal()
+
+# Create 3 equal groups by instruction expenses per FTE
+ipeds_panel <- ipeds_panel %>%
+  mutate(expense_group = ntile(`Instruction expenses per FTE`, 3)) %>%
+  mutate(expense_group = factor(expense_group,
+                                labels = c("Low Expenses", "Medium Expenses", "High Expenses")))
+
+# Plot retention trends facetted by expense group
+ipeds_panel %>%
+  group_by(year, `School Type`, expense_group) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_retention, color = `School Type`, group = `School Type`)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 2020, linetype = "dashed") +
+  facet_wrap(~ expense_group) +
+  scale_x_continuous(limits = c(2014, 2023), breaks = c(2015, 2017, 2019, 2021, 2023)) +
+  scale_y_continuous(limits = c(65, 100)) +
+  labs(title = "Retention Trends by School Type and Instruction Expenses per FTE",
+       x = "Year", y = "Mean Retention Rate",
+       color = "School Type") +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5)
+  )
+```
+
+```{r}
+ipeds_panel %>%
+  mutate(expense_group = ntile(`Instruction expenses per FTE`, 3)) %>%
+  mutate(expense_group = factor(expense_group,
+                                labels = c("Low Expenses", "Medium Expenses", "High Expenses"))) %>%
+  filter(expense_group == "Medium Expenses") %>%
+  group_by(year, `School Type`) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_retention, color = `School Type`, group = `School Type`)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 2020, linetype = "dashed") +
+  scale_x_continuous(limits = c(2014, 2023), breaks = c(2015, 2017, 2019, 2021, 2023)) +
+  scale_y_continuous(limits = c(50, 100)) +
+  labs(title = "Retention Trends – Medium Instruction Expenses",
+       x = "Year", y = "Mean Retention Rate",
+       color = "School Type") +
+  theme_minimal()
+```
+
+```{r}
+ipeds_panel %>%
+  mutate(expense_group = ntile(`Instruction expenses per FTE`, 3)) %>%
+  mutate(expense_group = factor(expense_group,
+                                labels = c("Low Expenses", "Medium Expenses", "High Expenses"))) %>%
+  group_by(year, `School Type`, expense_group) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_retention,
+             color = `School Type`, linetype = expense_group,
+             group = interaction(`School Type`, expense_group))) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 2020, linetype = "dashed") +
+  scale_x_continuous(limits = c(2018, 2023), breaks = 2018:2023) +
+  scale_y_continuous(limits = c(70, 100)) +
+  labs(title = "Retention Trends by School Type and Instruction Expense Level",
+       x = "Year", y = "Mean Retention Rate",
+       color = "School Type", linetype = "Expense Group") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    legend.position = "bottom"
+  )
+```
+
+
+
+```{r}
+ipeds_panel2 <- ipeds_panel %>%
+  mutate(treat = ifelse(`School Type` == "LRI", 1, 0),
+         year_rel = year - 2020)
+readr::write_csv(ipeds_panel2, "ipeds_panel2.csv")
+
+model_did <- feols(
+  `Full-time retention rate` ~ treat * `Post-covid` +
+    `Total 12-month unduplicated headcount` +
+    `Instruction expenses per FTE` +
+    `Percent Admitted` |
+    UnitID + year,
+  cluster = ~UnitID,
+  data = ipeds_panel2
+)
+
+summary(model_did)
+
+model_trends <- feols(
+  `Full-time retention rate` ~ i(year, treat, ref = 2019) | UnitID,
+  cluster = ~UnitID,
+  data = ipeds_panel2
+)
+iplot(model_trends, ref.line = -1)
+
+ipeds_panel2 %>%
+  group_by(year, treat) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_retention, color = factor(treat))) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 2020, linetype = "dashed") +
+  labs(
+    color = "School Type",
+    y = "Mean Full-time Retention Rate",
+    x = "Year",
+    title = "Parallel Trends and Difference-in-Differences Visualization"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+ipeds_panel3 <- ipeds_panel %>%
+  filter(year >= 2014, year <= 2020) %>%
+  mutate(
+    treat = ifelse(`School Type` == "LRI", 1, 0),
+    Post_2017 = ifelse(year >= 2018, 1, 0),
+    year_rel = year - 2017
+  )
+
+readr::write_csv(ipeds_panel3, "ipeds_panel3.csv")
+
+model_did_2017 <- feols(
+  `Full-time retention rate` ~ treat * Post_2017 +
+    `Total 12-month unduplicated headcount` +
+    `Instruction expenses per FTE` +
+    `Percent Admitted` +
+    `Graduation rate total cohort`|
+    UnitID + year,
+  cluster = ~UnitID,
+  data = ipeds_panel3
+)
+
+summary(model_did_2017)
+
+model_trends_2017 <- feols(
+  `Full-time retention rate` ~ i(year, treat, ref = 2017) | UnitID,
+  cluster = ~UnitID,
+  data = ipeds_panel3
+)
+
+iplot(model_trends_2017, ref.line = -1)
+
+ipeds_panel3 %>%
+  group_by(year, treat) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_retention, color = factor(treat))) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 2017, linetype = "dashed") +
+  labs(
+    color = "School Type",
+    y = "Mean Full-time Retention Rate",
+    x = "Year",
+    title = "Parallel Trends Around the 2017 Shock"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+library(fixest)
+
+# Create placebo for 2016
+ipeds_panel3$placebo_post <- ifelse(ipeds_panel3$year >= 2016, 1, 0)
+ipeds_panel3$placebo_interaction <- ipeds_panel3$treat * ipeds_panel3$placebo_post
+
+# Run the placebo DiD model
+placebo_model <- feols(
+  `Full-time retention rate` ~ treat * placebo_post +
+    `Total 12-month unduplicated headcount` +
+    `Instruction expenses per FTE` +
+    `Percent Admitted`,
+  data = ipeds_panel3,
+  fixef = c("UnitID", "year"),
+  cluster = ~ UnitID
+)
+
+summary(placebo_model)
+
+
+# Create placebo for 2018
+ipeds_panel2$placebo_post <- ifelse(ipeds_panel2$year >= 2019, 1, 0)
+ipeds_panel2$placebo_interaction <- ipeds_panel2$treat * ipeds_panel2$placebo_post
+
+# Run the placebo DiD model
+placebo_model <- feols(
+  `Full-time retention rate` ~ treat * placebo_post +
+    `Total 12-month unduplicated headcount` +
+    `Instruction expenses per FTE` +
+    `Percent Admitted`,
+  data = ipeds_panel2,
+  fixef = c("UnitID", "year"),
+  cluster = ~ UnitID
+)
+
+summary(placebo_model)
+```
+

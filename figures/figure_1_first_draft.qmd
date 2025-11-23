@@ -1,0 +1,122 @@
+---
+title: "figure_1_first_draft"
+format: html
+editor: visual
+---
+
+```{r}
+library(ggplot2)
+
+intervention <- 0.5   # intervention time
+
+# Pre-intervention slope shared by both groups
+pre_slope <- 2       
+intercept_control <- 2
+intercept_treatment <- 3
+
+# Post-intervention treatment slope increases
+post_slope_treat <- 3.5   # steeper than pre-inervention
+
+# Control continues its original slope
+post_slope_control <- pre_slope
+
+# Counterfactual uses the control slope
+post_slope_cf <- pre_slope
+
+
+# Pre-intervention points
+time_pre <- c(0, intervention)
+
+control_pre <- intercept_control + pre_slope * time_pre
+treat_pre   <- intercept_treatment + pre_slope * time_pre   # SAME SLOPE as control
+
+
+# Post-intervention points 
+time_post <- c(intervention, 1)
+control_post <- control_pre[2] + post_slope_control * (time_post - intervention)
+treat_post   <- treat_pre[2]   + post_slope_treat   * (time_post - intervention)
+cf_post <- treat_pre[2] + post_slope_cf * (time_post - intervention)
+
+
+df_control <- data.frame(
+  time = c(time_pre, time_post),
+  outcome = c(control_pre, control_post),
+  group = "Control"
+)
+
+df_treat_obs <- data.frame(
+  time = c(time_pre, time_post),
+  outcome = c(treat_pre, treat_post),
+  group = "Treatment (Observed)"
+)
+
+df_treat_cf <- data.frame(
+  time = time_post,
+  outcome = cf_post,
+  group = "Treatment (Counterfactual)"
+)
+
+
+p <- ggplot() +
+
+  # Control group
+  geom_line(data=df_control, aes(time, outcome),
+            color="darkgreen", size=1.4) +
+  geom_point(data=df_control, aes(time, outcome),
+             color="darkgreen", size=3) +
+  
+   # Treatment counterfactual (dotted, starts at intervention)
+  geom_line(data=df_treat_cf, aes(time, outcome),
+            color="firebrick", linetype="dotted", size=1.4) +
+  geom_point(data=df_treat_cf, aes(time, outcome),
+             color="firebrick", size=3, shape=21, fill="white") +
+  
+  # Treatment observed
+  geom_line(data=df_treat_obs, aes(time, outcome),
+            color="firebrick", size=1.4) +
+  geom_point(data=df_treat_obs, aes(time, outcome),
+             color="firebrick", size=3) +
+
+  # vertical line
+  geom_vline(xintercept = intervention, linetype="dashed") +
+
+  # control trend
+  annotate("text", x=0.55, y=2.8,
+           label="Control trend\n(before & after)",
+           color="darkgreen", size=4, hjust=0) +
+
+  # treatment observed trend
+  annotate("text", x=0.51, y=5.5,
+           label="Observed treatment\ntrend (after intervention)",
+           color="firebrick", size=4, hjust=0) +
+
+  # counterfactual treatment trend
+  annotate("text", x=0.85, y=4.3,
+           label="Counterfactual trend\n(if no intervention)",
+           size=4, hjust=0) +
+  annotate("segment",
+           x=1, xend=.9,
+           y=4.5, yend=4.7,
+           arrow=arrow(length=unit(0.2,"cm"))) +
+
+scale_x_continuous(
+    breaks = c(0,0.5, 1),
+    labels = c("Pre-intervention","Intervention", "Post-intervention"),
+    limits = c(-0.1, 1.2)
+) +
+labs(x = "", y = "Outcome") +   
+theme_minimal(base_size = 14) +
+theme(
+    axis.text.y = element_blank(),       # removes y-value numbers
+    axis.ticks.y = element_blank(),      # removes ticks
+    panel.grid.major = element_blank(),  # removes major gridlines
+    panel.grid.minor = element_blank(),  # removes minor gridlines
+    panel.grid = element_blank()         # ensures all gridlines gone
+)
+
+p
+
+ggsave("parallel_trends.png", p,
+       width = 8, height = 5, dpi = 300)
+```
+

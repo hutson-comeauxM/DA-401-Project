@@ -1,0 +1,84 @@
+---
+title: "figure_2_first_draft"
+format: html
+editor: visual
+---
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(showtext)
+
+ipeds_panel3 <- read_csv("ipeds_panel3.csv")
+
+font_add_google("Source Serif Pro", "serif_pro")
+showtext_auto()
+```
+
+```{r}
+p <- ipeds_panel3 %>%
+  group_by(year, treat) %>%
+  summarise(mean_retention = mean(`Full-time retention rate`, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    treat = recode(treat,
+                   "1" = "Large Research Institutions",
+                   "0" = "Small Liberal Arts")
+  ) %>%
+  ggplot(aes(x = year, y = mean_retention,
+             color = treat,
+             linetype = treat,
+             group = treat)) +
+  
+  geom_line(size = 1.15) +
+  geom_vline(xintercept = 2017, linetype = "dashed", color = "gray40") +
+  
+  # Axis limits and breaks for 2014–2020
+  scale_x_continuous(limits = c(2014, 2020), breaks = 2014:2020) +
+  scale_y_continuous(limits = c(75, 90), expand = c(0, 0)) +
+  
+  # Professional / colorblind-friendly palette
+  scale_color_manual(
+    values = c(
+      "Small Liberal Arts" = "#4682B4",
+      "Large Research Institutions" = "#E76F51"
+    )
+  ) +
+  scale_linetype_manual(
+    values = c(
+      "Small Liberal Arts" = "solid",
+      "Large Research Institutions" = "longdash"
+    )
+  ) +
+  
+  labs(
+    title = "Mean Full-time Retention Rates by Institution Type (2014–2020)",
+    x = "Year",
+    y = "Mean Full-time Retention Rate (%)",
+    color = "Institution Type",
+    linetype = "Institution Type",
+    caption = "Dashed vertical line marks 2017 (Trump's 1st Term)"
+  ) +
+  
+  # Professional minimal theme
+  theme_minimal(base_family = "serif_pro") +
+  theme(
+    text = element_text(size = 13, color = "#222222"),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5, color = "gray30"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray85", size = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title = element_text(face = "bold"),
+    plot.caption = element_text(size = 10, color = "gray40", hjust = 1),
+    legend.key.width = unit(2, "cm"),
+    legend.key.height = unit(0.4, "cm")
+  )
+
+# Save the plot
+ggsave("parallel_trends_retention_20177.png",
+       p, width = 8, height = 5, dpi = 150, bg = "white")
+```
+
